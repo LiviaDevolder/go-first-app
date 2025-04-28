@@ -5,10 +5,8 @@ import (
 	"net/http"
 )
 
-
-
 func main() {
-	server := &PlayerServer{NewStoragePlayerInMemory()}
+	server := NewPlayerServer(NewStoragePlayerInMemory())
 
 	if err := http.ListenAndServe(":5001", server); err != nil {
 		log.Fatalf("cant connect to port 5001 %v", err)

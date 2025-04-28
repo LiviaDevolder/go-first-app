@@ -1,15 +1,25 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
+
+const contentTypeJSON = "application/json"
 
 type SketchPlayerStorage struct {
 	scores     map[string]int
 	winRecords []string
+	league     []Player
+}
+
+func (s *SketchPlayerStorage) GetLeague() []Player {
+	return s.league
 }
 
 func (s *SketchPlayerStorage) GetPlayersPoints(name string) int {
@@ -28,8 +38,9 @@ func TestGetPlayers(t *testing.T) {
 			"Peter": 10,
 		},
 		nil,
+		nil,
 	}
-	server := &PlayerServer{&storage}
+	server := NewPlayerServer(&storage)
 
 	t.Run("get Mary's result", func(t *testing.T) {
 		// Arrange
@@ -78,9 +89,10 @@ func TestWinsStorage(t *testing.T) {
 	storage := SketchPlayerStorage{
 		map[string]int{},
 		nil,
+		nil,
 	}
 
-	server := &PlayerServer{&storage}
+	server := NewPlayerServer(&storage)
 
 	t.Run("record wins in HTTP POST request", func(t *testing.T) {
 		// Arrange
@@ -108,7 +120,7 @@ func TestWinsStorage(t *testing.T) {
 func TestRecordWinsAndGetPoints(t *testing.T) {
 	// Arrange
 	storage := NewStoragePlayerInMemory()
-	server := PlayerServer{storage}
+	server := NewPlayerServer(storage)
 	player := "Mary"
 
 	// Act
@@ -116,14 +128,59 @@ func TestRecordWinsAndGetPoints(t *testing.T) {
 		server.ServeHTTP(httptest.NewRecorder(), newRequestPostRecordWin(player))
 	}
 
-	response := httptest.NewRecorder()
+	t.Run("get score", func(t *testing.T) {
+		response := httptest.NewRecorder()
 
-	server.ServeHTTP(response, newRequestGetPoints(player))
+		server.ServeHTTP(response, newRequestGetPoints(player))
 
-	// Assert
-	verifyStatusCode(t, response.Code, http.StatusOK)
+		// Assert
+		verifyStatusCode(t, response.Code, http.StatusOK)
 
-	verifyRequestBody(t, response.Body.String(), "3")
+		verifyRequestBody(t, response.Body.String(), "3")
+	})
+
+	t.Run("get league", func(t *testing.T) {
+		// Arrange
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, newLeagueRequest())
+
+		expect := []Player{
+			{"Mary", 3},
+		}
+
+		// Act
+		result := getLeagueAnswer(t, response.Body)
+
+		// Assert
+		verifyStatusCode(t, response.Code, http.StatusOK)
+		verifyLeague(t, result, expect)
+	})
+}
+
+func TestLeague(t *testing.T) {
+	expectedLeague := []Player{
+		{"Livia", 22},
+		{"Ari", 23},
+		{"Anthony", 22},
+	}
+	storage := SketchPlayerStorage{nil, nil, expectedLeague}
+	server := NewPlayerServer(&storage)
+
+	t.Run("return 200 in /league", func(t *testing.T) {
+		// Arrange
+		request := newLeagueRequest()
+		response := httptest.NewRecorder()
+
+		// Act
+		server.ServeHTTP(response, request)
+
+		result := getLeagueAnswer(t, response.Body)
+
+		// Assert
+		verifyStatusCode(t, response.Code, http.StatusOK)
+		verifyLeague(t, result, expectedLeague)
+		verifyContentType(t, response, contentTypeJSON)
+	})
 }
 
 func newRequestGetPoints(name string) *http.Request {
@@ -147,5 +204,35 @@ func verifyStatusCode(t *testing.T, result, expect int) {
 	t.Helper()
 	if result != expect {
 		t.Errorf("wrong status code, result %d, expected %d", result, expect)
+	}
+}
+
+func getLeagueAnswer(t *testing.T, body io.Reader) (league []Player) {
+	t.Helper()
+	err := json.NewDecoder(body).Decode(&league)
+
+	if err != nil {
+		t.Fatalf("Cant parse %s player server answer: %v", body, err)
+	}
+
+	return
+}
+
+func verifyLeague(t *testing.T, result, expected []Player) {
+	t.Helper()
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("obtido %v esperado %v", result, expected)
+	}
+}
+
+func newLeagueRequest() *http.Request {
+	req, _ := http.NewRequest(http.MethodGet, "/league", nil)
+	return req
+}
+
+func verifyContentType(t *testing.T, response *httptest.ResponseRecorder, expect string) {
+	t.Helper()
+	if response.Result().Header.Get("content-type") != expect {
+		t.Errorf("wrong response type, expect %s and got %s", expect, response.Result().Header)
 	}
 }
