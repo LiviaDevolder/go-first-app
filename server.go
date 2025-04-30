@@ -9,11 +9,11 @@ import (
 type PlayerStorage interface {
 	GetPlayersPoints(name string) int
 	RecordWin(name string)
-	GetLeague() []Player
+	GetLeague() League
 }
 
 type PlayerServer struct {
-	storage PlayerStorage
+	storage *PlayerFileStorageSystem
 	http.Handler
 }
 
@@ -22,7 +22,7 @@ type Player struct {
 	Wins int
 }
 
-func NewPlayerServer(storage PlayerStorage) *PlayerServer {
+func NewPlayerServer(storage *PlayerFileStorageSystem) *PlayerServer {
 	p := new(PlayerServer)
 
 	p.storage = storage
@@ -54,7 +54,7 @@ func (p *PlayerServer) handlePlayers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *PlayerServer) getScore(w http.ResponseWriter, player string) {
-	score := p.storage.GetPlayersPoints(player)
+	score := p.storage.GetPlayerScore(player)
 
 	if score == 0 {
 		w.WriteHeader(http.StatusNotFound)
@@ -64,6 +64,6 @@ func (p *PlayerServer) getScore(w http.ResponseWriter, player string) {
 }
 
 func (p *PlayerServer) recordWin(w http.ResponseWriter, player string) {
-	p.storage.RecordWin(player)
+	p.storage.SaveVictory(player)
 	w.WriteHeader(http.StatusAccepted)
 }

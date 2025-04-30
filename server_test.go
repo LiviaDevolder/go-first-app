@@ -15,10 +15,10 @@ const contentTypeJSON = "application/json"
 type SketchPlayerStorage struct {
 	scores     map[string]int
 	winRecords []string
-	league     []Player
+	league     League
 }
 
-func (s *SketchPlayerStorage) GetLeague() []Player {
+func (s *SketchPlayerStorage) GetLeague() League {
 	return s.league
 }
 
@@ -32,15 +32,15 @@ func (s *SketchPlayerStorage) RecordWin(name string) {
 }
 
 func TestGetPlayers(t *testing.T) {
-	storage := SketchPlayerStorage{
-		map[string]int{
-			"Mary":  20,
-			"Peter": 10,
-		},
-		nil,
-		nil,
-	}
-	server := NewPlayerServer(&storage)
+	database, cleanDatabase := createTmpFile(t, `[
+            {"Name": "Mary", "Wins": 20},
+            {"Name": "Peter", "Wins": 10}]`)
+	defer cleanDatabase()
+	storage, err := NewPlayerFileStorageSystem(database)
+
+	verifyNoError(t, err)
+
+	server := NewPlayerServer(storage)
 
 	t.Run("get Mary's result", func(t *testing.T) {
 		// Arrange
@@ -86,13 +86,13 @@ func TestGetPlayers(t *testing.T) {
 }
 
 func TestWinsStorage(t *testing.T) {
-	storage := SketchPlayerStorage{
-		map[string]int{},
-		nil,
-		nil,
-	}
+	database, cleanDatabase := createTmpFile(t, "[]")
+	defer cleanDatabase()
+	storage, err := NewPlayerFileStorageSystem(database)
 
-	server := NewPlayerServer(&storage)
+	verifyNoError(t, err)
+
+	server := NewPlayerServer(storage)
 
 	t.Run("record wins in HTTP POST request", func(t *testing.T) {
 		// Arrange
@@ -107,19 +107,20 @@ func TestWinsStorage(t *testing.T) {
 		// Assert
 		verifyStatusCode(t, response.Code, http.StatusAccepted)
 
-		if len(storage.winRecords) != 1 {
-			t.Errorf("%d win records, expect %d", len(storage.winRecords), 1)
-		}
-
-		if storage.winRecords[0] != player {
-			t.Errorf("didnt record correct player, result %s, expect %s", storage.winRecords[0], player)
+		if storage.GetPlayerScore(player) != 1 {
+			t.Errorf("%d win records, expect %d", storage.GetPlayerScore(player), 1)
 		}
 	})
 }
 
 func TestRecordWinsAndGetPoints(t *testing.T) {
 	// Arrange
-	storage := NewStoragePlayerInMemory()
+	database, cleanDatabase := createTmpFile(t, "[]")
+	defer cleanDatabase()
+	storage, err := NewPlayerFileStorageSystem(database)
+	
+	verifyNoError(t, err)
+	
 	server := NewPlayerServer(storage)
 	player := "Mary"
 
@@ -158,13 +159,16 @@ func TestRecordWinsAndGetPoints(t *testing.T) {
 }
 
 func TestLeague(t *testing.T) {
-	expectedLeague := []Player{
-		{"Livia", 22},
-		{"Ari", 23},
-		{"Anthony", 22},
-	}
-	storage := SketchPlayerStorage{nil, nil, expectedLeague}
-	server := NewPlayerServer(&storage)
+	database, cleanDatabase := createTmpFile(t, `[
+            {"Name": "Livia", "Wins": 22},
+						{"Name": "Ari", "Wins": 23},
+            {"Name": "Anthony", "Wins": 22}]`)
+	defer cleanDatabase()
+	storage, err := NewPlayerFileStorageSystem(database)
+
+	verifyNoError(t, err)
+
+	server := NewPlayerServer(storage)
 
 	t.Run("return 200 in /league", func(t *testing.T) {
 		// Arrange
@@ -178,10 +182,12 @@ func TestLeague(t *testing.T) {
 
 		// Assert
 		verifyStatusCode(t, response.Code, http.StatusOK)
-		verifyLeague(t, result, expectedLeague)
+		verifyLeague(t, result, storage.GetLeague())
 		verifyContentType(t, response, contentTypeJSON)
 	})
 }
+
+
 
 func newRequestGetPoints(name string) *http.Request {
 	request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/players/%s", name), nil)
