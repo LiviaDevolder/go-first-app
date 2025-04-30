@@ -1,15 +1,13 @@
-package main
+package poker
 
 import (
-	"io/ioutil"
-	"os"
 	"testing"
 )
 
 func TestPlayerFileStorageSystem(t *testing.T) {
 	t.Run("/league reader", func(t *testing.T) {
 		// Arrange
-		database, cleanDatabase := createTmpFile(t, `[
+		database, cleanDatabase := CreateTmpFile(t, `[
             {"Name": "Ari", "Wins": 10},
             {"Name": "Livia", "Wins": 0}]`)
 
@@ -17,7 +15,7 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 
 		storage, err := NewPlayerFileStorageSystem(database)
 
-		verifyNoError(t, err)
+		VerifyNoError(t, err)
 
 		expect := []Player{
 			{"Ari", 10},
@@ -28,12 +26,12 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 		result := storage.GetLeague()
 
 		// Assert
-		verifyLeague(t, result, expect)
+		VerifyLeague(t, result, expect)
 	})
 
 	t.Run("get player score", func(t *testing.T) {
 		// Arrange
-		database, cleanDatabase := createTmpFile(t, `[
+		database, cleanDatabase := CreateTmpFile(t, `[
             {"Name": "Ari", "Wins": 10},
             {"Name": "Livia", "Wins": 0}]`)
 
@@ -41,7 +39,7 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 
 		storage, err := NewPlayerFileStorageSystem(database)
 
-		verifyNoError(t, err)
+		VerifyNoError(t, err)
 
 		expect := 0
 
@@ -49,12 +47,12 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 		result := storage.GetPlayerScore("Livia")
 
 		// Assert
-		verifyScore(t, result, expect)
+		VerifyScore(t, result, expect)
 	})
 
 	t.Run("store a player wins", func(t *testing.T) {
 		// Arrange
-		database, cleanDatabase := createTmpFile(t, `[
+		database, cleanDatabase := CreateTmpFile(t, `[
             {"Name": "Livia", "Wins": 0},
             {"Name": "Ari", "Wins": 10}]`)
 
@@ -64,7 +62,7 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 
 		storage, err := NewPlayerFileStorageSystem(database)
 
-		verifyNoError(t, err)
+		VerifyNoError(t, err)
 
 		storage.SaveVictory("Livia")
 
@@ -72,12 +70,12 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 		result := storage.GetPlayerScore("Livia")
 
 		// Assert
-		verifyScore(t, result, expect)
+		VerifyScore(t, result, expect)
 	})
 
 	t.Run("store a new player win", func(t *testing.T) {
 		// Arrange
-		database, cleanDatabase := createTmpFile(t, `[
+		database, cleanDatabase := CreateTmpFile(t, `[
             {"Name": "Livia", "Wins": 0},
             {"Name": "Ari", "Wins": 10}]`)
 
@@ -87,7 +85,7 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 
 		storage, err := NewPlayerFileStorageSystem(database)
 
-		verifyNoError(t, err)
+		VerifyNoError(t, err)
 
 		storage.SaveVictory("Anthony")
 
@@ -95,24 +93,24 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 		result := storage.GetPlayerScore("Anthony")
 
 		// Assert
-		verifyScore(t, result, expect)
+		VerifyScore(t, result, expect)
 	})
 
 	t.Run("deal with an empty file", func(t *testing.T) {
 		// Arrange
-		database, cleanDatabase := createTmpFile(t, "")
+		database, cleanDatabase := CreateTmpFile(t, "")
 		defer cleanDatabase()
 
 		// Act
 		_, err := NewPlayerFileStorageSystem(database)
 
 		// Assert
-		verifyNoError(t, err)
+		VerifyNoError(t, err)
 	})
 
 	t.Run("order league", func(t *testing.T) {
 		// Arrange
-		database, cleanDatabase := createTmpFile(t, `[
+		database, cleanDatabase := CreateTmpFile(t, `[
             {"Name": "Livia", "Wins": 0},
             {"Name": "Ari", "Wins": 10}]`)
 
@@ -129,44 +127,10 @@ func TestPlayerFileStorageSystem(t *testing.T) {
 		result := storage.GetLeague()
 
 		// Assert
-		verifyLeague(t, result, expect)
+		VerifyLeague(t, result, expect)
 
 		result = storage.GetLeague()
-		verifyLeague(t, result, expect)
+		VerifyLeague(t, result, expect)
 	})
 }
 
-func verifyScore(t *testing.T, result, expect int) {
-	t.Helper()
-
-	if result != expect {
-		t.Errorf("result %d expect %d", result, expect)
-	}
-}
-
-func createTmpFile(t *testing.T, initialData string) (*os.File, func()) {
-	t.Helper()
-
-	tmpfile, err := ioutil.TempFile("", "db")
-
-	if err != nil {
-		t.Fatalf("can not write temp file %v", err)
-	}
-
-	tmpfile.Write([]byte(initialData))
-
-	removeFile := func() {
-		tmpfile.Close()
-		os.Remove(tmpfile.Name())
-	}
-
-	return tmpfile, removeFile
-}
-
-func verifyNoError(t *testing.T, err error) {
-	t.Helper()
-
-	if err != nil {
-		t.Fatalf("expect no error but got %v", err)
-	}
-}

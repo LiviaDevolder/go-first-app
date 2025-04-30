@@ -1,4 +1,4 @@
-package main
+package poker
 
 import (
 	"io/ioutil"
@@ -7,7 +7,7 @@ import (
 
 func TestTape_Write(t *testing.T) {
 	// Arrange
-	file, clean := createTmpFile(t, "12345")
+	file, clean := CreateTmpFile(t, "12345")
 	defer clean()
 
 	tape := &tape{file}

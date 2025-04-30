@@ -1,4 +1,4 @@
-package main
+package poker
 
 import (
 	"encoding/json"
@@ -16,7 +16,7 @@ func (p *PlayerFileStorageSystem) GetLeague() League {
 	sort.Slice(p.league, func(i, j int) bool {
 		return p.league[i].Wins > p.league[j].Wins
 	})
-	
+
 	return p.league
 }
 
@@ -76,4 +76,24 @@ func initializePlayerBDDFile(file *os.File) error {
 	}
 
 	return nil
+}
+
+func PlayerFileStorageSystemFromFile(path string) (*PlayerFileStorageSystem, func(), error) {
+	db, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to open %s %v", path, err)
+	}
+
+	closeFunc := func() {
+		db.Close()
+	}
+
+	storage, err := NewPlayerFileStorageSystem(db)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create file storage system, %v", err)
+	}
+
+	return storage, closeFunc, nil
 }

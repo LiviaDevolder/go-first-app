@@ -1,44 +1,22 @@
-package main
+package poker
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 )
 
 const contentTypeJSON = "application/json"
 
-type SketchPlayerStorage struct {
-	scores     map[string]int
-	winRecords []string
-	league     League
-}
-
-func (s *SketchPlayerStorage) GetLeague() League {
-	return s.league
-}
-
-func (s *SketchPlayerStorage) GetPlayersPoints(name string) int {
-	score := s.scores[name]
-	return score
-}
-
-func (s *SketchPlayerStorage) RecordWin(name string) {
-	s.winRecords = append(s.winRecords, name)
-}
-
 func TestGetPlayers(t *testing.T) {
-	database, cleanDatabase := createTmpFile(t, `[
+	database, cleanDatabase := CreateTmpFile(t, `[
             {"Name": "Mary", "Wins": 20},
             {"Name": "Peter", "Wins": 10}]`)
 	defer cleanDatabase()
 	storage, err := NewPlayerFileStorageSystem(database)
 
-	verifyNoError(t, err)
+	VerifyNoError(t, err)
 
 	server := NewPlayerServer(storage)
 
@@ -51,8 +29,8 @@ func TestGetPlayers(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		// Assert
-		verifyStatusCode(t, response.Code, http.StatusOK)
-		verifyRequestBody(t, response.Body.String(), "20")
+		VerifyStatusCode(t, response.Code, http.StatusOK)
+		VerifyRequestBody(t, response.Body.String(), "20")
 	})
 
 	t.Run("get Peter's result", func(t *testing.T) {
@@ -64,8 +42,8 @@ func TestGetPlayers(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		// Assert
-		verifyStatusCode(t, response.Code, http.StatusOK)
-		verifyRequestBody(t, response.Body.String(), "10")
+		VerifyStatusCode(t, response.Code, http.StatusOK)
+		VerifyRequestBody(t, response.Body.String(), "10")
 	})
 
 	t.Run("throws 404 when player doesnt exists", func(t *testing.T) {
@@ -86,11 +64,11 @@ func TestGetPlayers(t *testing.T) {
 }
 
 func TestWinsStorage(t *testing.T) {
-	database, cleanDatabase := createTmpFile(t, "[]")
+	database, cleanDatabase := CreateTmpFile(t, "[]")
 	defer cleanDatabase()
 	storage, err := NewPlayerFileStorageSystem(database)
 
-	verifyNoError(t, err)
+	VerifyNoError(t, err)
 
 	server := NewPlayerServer(storage)
 
@@ -105,7 +83,7 @@ func TestWinsStorage(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		// Assert
-		verifyStatusCode(t, response.Code, http.StatusAccepted)
+		VerifyStatusCode(t, response.Code, http.StatusAccepted)
 
 		if storage.GetPlayerScore(player) != 1 {
 			t.Errorf("%d win records, expect %d", storage.GetPlayerScore(player), 1)
@@ -115,12 +93,12 @@ func TestWinsStorage(t *testing.T) {
 
 func TestRecordWinsAndGetPoints(t *testing.T) {
 	// Arrange
-	database, cleanDatabase := createTmpFile(t, "[]")
+	database, cleanDatabase := CreateTmpFile(t, "[]")
 	defer cleanDatabase()
 	storage, err := NewPlayerFileStorageSystem(database)
-	
-	verifyNoError(t, err)
-	
+
+	VerifyNoError(t, err)
+
 	server := NewPlayerServer(storage)
 	player := "Mary"
 
@@ -135,59 +113,57 @@ func TestRecordWinsAndGetPoints(t *testing.T) {
 		server.ServeHTTP(response, newRequestGetPoints(player))
 
 		// Assert
-		verifyStatusCode(t, response.Code, http.StatusOK)
+		VerifyStatusCode(t, response.Code, http.StatusOK)
 
-		verifyRequestBody(t, response.Body.String(), "3")
+		VerifyRequestBody(t, response.Body.String(), "3")
 	})
 
 	t.Run("get league", func(t *testing.T) {
 		// Arrange
 		response := httptest.NewRecorder()
-		server.ServeHTTP(response, newLeagueRequest())
+		server.ServeHTTP(response, NewLeagueRequest())
 
 		expect := []Player{
 			{"Mary", 3},
 		}
 
 		// Act
-		result := getLeagueAnswer(t, response.Body)
+		result := GetLeagueAnswer(t, response.Body)
 
 		// Assert
-		verifyStatusCode(t, response.Code, http.StatusOK)
-		verifyLeague(t, result, expect)
+		VerifyStatusCode(t, response.Code, http.StatusOK)
+		VerifyLeague(t, result, expect)
 	})
 }
 
 func TestLeague(t *testing.T) {
-	database, cleanDatabase := createTmpFile(t, `[
+	database, cleanDatabase := CreateTmpFile(t, `[
             {"Name": "Livia", "Wins": 22},
 						{"Name": "Ari", "Wins": 23},
             {"Name": "Anthony", "Wins": 22}]`)
 	defer cleanDatabase()
 	storage, err := NewPlayerFileStorageSystem(database)
 
-	verifyNoError(t, err)
+	VerifyNoError(t, err)
 
 	server := NewPlayerServer(storage)
 
 	t.Run("return 200 in /league", func(t *testing.T) {
 		// Arrange
-		request := newLeagueRequest()
+		request := NewLeagueRequest()
 		response := httptest.NewRecorder()
 
 		// Act
 		server.ServeHTTP(response, request)
 
-		result := getLeagueAnswer(t, response.Body)
+		result := GetLeagueAnswer(t, response.Body)
 
 		// Assert
-		verifyStatusCode(t, response.Code, http.StatusOK)
-		verifyLeague(t, result, storage.GetLeague())
-		verifyContentType(t, response, contentTypeJSON)
+		VerifyStatusCode(t, response.Code, http.StatusOK)
+		VerifyLeague(t, result, storage.GetLeague())
+		VerifyContentType(t, response, contentTypeJSON)
 	})
 }
-
-
 
 func newRequestGetPoints(name string) *http.Request {
 	request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/players/%s", name), nil)
@@ -197,48 +173,4 @@ func newRequestGetPoints(name string) *http.Request {
 func newRequestPostRecordWin(name string) *http.Request {
 	request, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/players/%s", name), nil)
 	return request
-}
-
-func verifyRequestBody(t *testing.T, result, expect string) {
-	t.Helper()
-	if result != expect {
-		t.Errorf("result %s, expect %s", result, expect)
-	}
-}
-
-func verifyStatusCode(t *testing.T, result, expect int) {
-	t.Helper()
-	if result != expect {
-		t.Errorf("wrong status code, result %d, expected %d", result, expect)
-	}
-}
-
-func getLeagueAnswer(t *testing.T, body io.Reader) (league []Player) {
-	t.Helper()
-	err := json.NewDecoder(body).Decode(&league)
-
-	if err != nil {
-		t.Fatalf("Cant parse %s player server answer: %v", body, err)
-	}
-
-	return
-}
-
-func verifyLeague(t *testing.T, result, expected []Player) {
-	t.Helper()
-	if !reflect.DeepEqual(result, expected) {
-		t.Errorf("obtido %v esperado %v", result, expected)
-	}
-}
-
-func newLeagueRequest() *http.Request {
-	req, _ := http.NewRequest(http.MethodGet, "/league", nil)
-	return req
-}
-
-func verifyContentType(t *testing.T, response *httptest.ResponseRecorder, expect string) {
-	t.Helper()
-	if response.Result().Header.Get("content-type") != expect {
-		t.Errorf("wrong response type, expect %s and got %s", expect, response.Result().Header)
-	}
 }
